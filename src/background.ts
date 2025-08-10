@@ -98,37 +98,143 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true; // Keep message channel open for async response
   }
+
+  // Handle request to open options page
+  if (message.action === "openOptionsPage") {
+    chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
+    sendResponse({ success: true });
+    return;
+  }
 });
 
 function injectTranslatorScript() {
   // Define all functions in the content script scope
-  function toggleTranslatorButton() {
-    const existingButton = document.getElementById("screen-translator-btn");
+  function toggleTranslatorToolbar() {
+    const existingToolbar = document.getElementById("screen-translator-toolbar");
 
-    if (existingButton) {
-      existingButton.remove();
+    if (existingToolbar) {
+      existingToolbar.remove();
     } else {
-      const button = document.createElement("button");
-      button.id = "screen-translator-btn";
-      button.textContent = "Capture";
-      button.style.cssText = `
+      // Create toolbar container
+      const toolbar = document.createElement("div");
+      toolbar.id = "screen-translator-toolbar";
+      toolbar.style.cssText = `
         position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10000;
-        padding: 10px 15px;
-        background: #646cff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10002;
+        background: #374151;
+        border: 1px solid #4b5563;
+        border-radius: 8px;
+        padding: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
         font-family: system-ui;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       `;
 
-      button.addEventListener("click", startCapture);
+      // Create Add button
+      const addBtn = createToolbarButton("➕", "#4b5563", startCapture, "Add new translation");
+      
+      // Create Delete All button
+      const deleteBtn = createToolbarButton("🗑️", "#4b5563", deleteAllWidgets, "Delete all translations");
+      
+      // Create Settings button
+      const settingsBtn = createToolbarButton("⚙️", "#4b5563", openSettings, "Open settings");
+      
+      // Create Close button
+      const closeBtn = createToolbarButton("✕", "#4b5563", () => toolbar.remove(), "Close toolbar");
+      closeBtn.style.minWidth = "36px";
+      closeBtn.style.fontSize = "14px";
+      closeBtn.style.fontWeight = "bold";
 
-      document.body.appendChild(button);
+      toolbar.appendChild(addBtn);
+      toolbar.appendChild(deleteBtn);
+      toolbar.appendChild(settingsBtn);
+      toolbar.appendChild(closeBtn);
+
+      document.body.appendChild(toolbar);
     }
+  }
+
+  function createToolbarButton(text: string, color: string, onClick: () => void, tooltip?: string): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.style.cssText = `
+      padding: 6px;
+      background: ${color};
+      color: #e5e7eb;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: system-ui;
+      font-size: 14px;
+      font-weight: 400;
+      transition: all 0.2s ease;
+      min-width: 28px;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: none;
+    `;
+    
+    // Add tooltip if provided
+    if (tooltip) {
+      button.title = tooltip;
+    }
+    
+    button.addEventListener("click", onClick);
+    
+    // Add hover effects
+    button.addEventListener("mouseenter", () => {
+      button.style.background = "#6b7280";
+      button.style.color = "#f9fafb";
+    });
+    
+    button.addEventListener("mouseleave", () => {
+      button.style.background = color;
+      button.style.color = "#e5e7eb";
+    });
+
+    return button;
+  }
+
+  function deleteAllWidgets(): void {
+    // Find all translation widgets and remove them
+    const widgets = document.querySelectorAll('[id^="translation-widget-"]');
+    widgets.forEach(widget => widget.remove());
+    
+    // Show confirmation message
+    const toolbar = document.getElementById("screen-translator-toolbar");
+    if (toolbar) {
+      const originalBackground = toolbar.style.background;
+      toolbar.style.background = "#6b7280";
+      
+      // Create temporary message
+      const message = document.createElement("span");
+      message.textContent = "✓ Deleted!";
+      message.style.cssText = `
+        color: #f9fafb;
+        font-size: 12px;
+        font-weight: 400;
+        margin: 0 6px;
+      `;
+      
+      toolbar.appendChild(message);
+      
+      setTimeout(() => {
+        message.remove();
+        toolbar.style.background = originalBackground;
+      }, 1200);
+    }
+  }
+
+  function openSettings(): void {
+    // Open options page in new tab
+    chrome.runtime.sendMessage({ action: "openOptionsPage" });
   }
 
   function startCapture(): void {
@@ -385,19 +491,7 @@ function injectTranslatorScript() {
     const absoluteX = x + scrollX;
     const absoluteY = y + scrollY;
 
-    // Calculate appropriate font size based on widget dimensions
-    const area = width * height;
-    let fontSize: number;
-    if (area < 10000) {
-      fontSize = 14;
-    } else if (area < 20000) {
-      fontSize = 16;
-    } else if (area < 40000) {
-      fontSize = 18;
-    } else {
-      fontSize = 20;
-    }
-
+  
     // Create main widget container
     const widget = document.createElement("div");
     widget.id = widgetId;
@@ -459,7 +553,6 @@ function injectTranslatorScript() {
     const content = document.createElement("div");
     content.style.cssText = `
       padding: 4px;
-      font-size: ${fontSize}px;
       line-height: 1.2;
       text-transform: uppercase;
       word-wrap: break-word;
@@ -483,7 +576,7 @@ function injectTranslatorScript() {
       const availableArea = (width - 16) * (height - 16); // Subtract padding
       
       // Calculate optimal font size based on content and available space
-      let optimalSize = Math.sqrt(availableArea / textLength) * 0.8;
+      let optimalSize = Math.sqrt(availableArea / textLength) * 0.9;
       optimalSize = Math.max(8, Math.min(optimalSize, 20)); // Min 8px, max 20px
       
       content.style.fontSize = optimalSize + "px";
@@ -546,5 +639,5 @@ function injectTranslatorScript() {
   }
 
   // Execute the toggle function
-  toggleTranslatorButton();
+  toggleTranslatorToolbar();
 }

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp public/manifest.json dist/",
+    "build": "tsc -b && vite build && cp public/manifest.json dist/ && cp public/options.html dist/ && cp public/options.css dist/",
     "lint": "eslint .",
     "preview": "vite preview"
   },

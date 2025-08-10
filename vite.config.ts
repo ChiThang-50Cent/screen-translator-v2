@@ -9,10 +9,17 @@ export default defineConfig({
       input: {
         background: resolve(__dirname, 'src/background.ts'),
         content: resolve(__dirname, 'src/content.ts'),
+        options: resolve(__dirname, 'public/options.js'),
       },
       output: {
-        entryFileNames: 'src/[name].js',
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === 'options') {
+            return 'options.js';
+          }
+          return 'src/[name].js';
+        },
       },
     },
+    copyPublicDir: true,
   },
 });

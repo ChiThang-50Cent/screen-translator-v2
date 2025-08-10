@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true; // Keep message channel open for async response
   }
-  
+
   // Handle OCR request from injected script
   if (message.action === "performOCRInBackground") {
     const tabId = sender.tab?.id;
@@ -40,22 +40,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     // Send OCR request to content script
-    chrome.tabs.sendMessage(tabId, {
-      action: "performOCR",
-      imageData: message.imageData
-    }, (ocrResponse: { success: boolean; text?: string; error?: string }) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ 
-          success: false, 
-          error: 'Failed to communicate with content script: ' + chrome.runtime.lastError.message 
-        });
-        return;
+    chrome.tabs.sendMessage(
+      tabId,
+      {
+        action: "performOCR",
+        imageData: message.imageData,
+      },
+      (ocrResponse: { success: boolean; text?: string; error?: string }) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({
+            success: false,
+            error:
+              "Failed to communicate with content script: " +
+              chrome.runtime.lastError.message,
+          });
+          return;
+        }
+
+        // Forward the OCR response back to the injected script
+        sendResponse(ocrResponse);
       }
-      
-      // Forward the OCR response back to the injected script
-      sendResponse(ocrResponse);
-    });
-    
+    );
+
+    return true; // Keep message channel open for async response
+  }
+
+  // Handle LLM request from injected script
+  if (message.action === "performLLMInBackground") {
+    const tabId = sender.tab?.id;
+    if (!tabId) {
+      sendResponse({ success: false, error: "Tab ID not available" });
+      return;
+    }
+
+    // Send LLM request to content script
+    chrome.tabs.sendMessage(
+      tabId,
+      {
+        action: "performLLMCall",
+        text: message.text,
+      },
+      (llmResponse: { success: boolean; translatedText?: string; error?: string }) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({
+            success: false,
+            error:
+              "Failed to communicate with content script: " +
+              chrome.runtime.lastError.message,
+          });
+          return;
+        }
+
+        // Forward the LLM response back to the injected script
+        sendResponse(llmResponse);
+      }
+    );
+
     return true; // Keep message channel open for async response
   }
 });
@@ -234,28 +274,64 @@ function injectTranslatorScript() {
         );
 
         // Convert canvas to base64 for sending to content script
-        const croppedBase64 = croppedCanvas.toDataURL('image/png');
-        
+        const croppedBase64 = croppedCanvas.toDataURL("image/png");
+
         // Send OCR request through background script (as proxy)
-        chrome.runtime.sendMessage({
-          action: "performOCRInBackground",
-          imageData: croppedBase64
-        }, (ocrResponse: { success: boolean; text?: string; error?: string }) => {
-          if (chrome.runtime.lastError) {
-            console.error('Background communication failed:', chrome.runtime.lastError.message);
-            alert('Failed to communicate with background script');
-            return;
+        chrome.runtime.sendMessage(
+          {
+            action: "performOCRInBackground",
+            imageData: croppedBase64,
+          },
+          (ocrResponse: {
+            success: boolean;
+            text?: string;
+            error?: string;
+          }) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Background communication failed:",
+                chrome.runtime.lastError.message
+              );
+              alert("Failed to communicate with background script");
+              return;
+            }
+
+            if (ocrResponse && ocrResponse.success && ocrResponse.text) {              
+              // Call LLM API for translation
+              chrome.runtime.sendMessage(
+                {
+                  action: "performLLMInBackground",
+                  text: ocrResponse.text,
+                },
+                (llmResponse: {
+                  success: boolean;
+                  translatedText?: string;
+                  error?: string;
+                }) => {
+                  if (chrome.runtime.lastError) {
+                    console.error(
+                      "LLM communication failed:",
+                      chrome.runtime.lastError.message
+                    );
+                    alert("Failed to communicate with LLM service");
+                    return;
+                  }
+
+                  if (llmResponse && llmResponse.success) {
+                    console.log("Translated Text:", llmResponse.translatedText);
+                    showTranslationResult(llmResponse.translatedText || "", x, y, width, height);
+                  } else {
+                    console.error("Translation failed:", llmResponse?.error);
+                    alert("Translation failed: " + (llmResponse?.error || "Unknown error"));
+                  }
+                }
+              );
+            } else {
+              console.error("OCR failed:", ocrResponse?.error);
+              alert("OCR failed: " + (ocrResponse?.error || "Unknown error"));
+            }
           }
-          
-          if (ocrResponse && ocrResponse.success) {
-            console.log('OCR Text:', ocrResponse.text);
-            // Hiển thị kết quả hoặc xử lý tiếp
-            alert('OCR Result: ' + ocrResponse.text);
-          } else {
-            console.error('OCR failed:', ocrResponse?.error);
-            alert('OCR failed: ' + (ocrResponse?.error || 'Unknown error'));
-          }
-        });
+        );
       } else {
         throw new Error("Failed to capture screen");
       }
@@ -295,6 +371,178 @@ function injectTranslatorScript() {
       img.onerror = () => reject(new Error("Failed to load image"));
       img.src = fullScreenshotBase64;
     });
+  }
+
+  function showTranslationResult(translatedText: string, x: number, y: number, width: number, height: number): void {
+    // Generate unique ID for this widget instance
+    const widgetId = `translation-widget-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Get scroll position to calculate absolute position
+    const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+    // Calculate absolute position (relative to document, not viewport)
+    const absoluteX = x + scrollX;
+    const absoluteY = y + scrollY;
+
+    // Calculate appropriate font size based on widget dimensions
+    const area = width * height;
+    let fontSize: number;
+    if (area < 10000) {
+      fontSize = 14;
+    } else if (area < 20000) {
+      fontSize = 16;
+    } else if (area < 40000) {
+      fontSize = 18;
+    } else {
+      fontSize = 20;
+    }
+
+    // Create main widget container
+    const widget = document.createElement("div");
+    widget.id = widgetId;
+    widget.style.cssText = `
+      position: absolute;
+      top: ${absoluteY}px;
+      left: ${absoluteX}px;
+      width: ${width}px;
+      height: ${height}px;
+      background: rgba(0, 0, 0, 0.95);
+      border: 2px solid #646cff;
+      border-radius: 8px;
+      color: white;
+      font-family: system-ui;
+      z-index: 10000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      resize: both;
+      min-width: 100px;
+      min-height: 60px;
+      cursor: move;
+      display: flex;
+      flex-direction: column;
+    `;
+
+    // Create close button
+    const closeButton = document.createElement("button");
+    closeButton.textContent = "×";
+    closeButton.style.cssText = `
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      border: none;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      z-index: 10001;
+      font-weight: bold;
+    `;
+    closeButton.onmouseover = () => {
+      closeButton.style.color = "rgba(255, 0, 0, 1)";
+    };
+    closeButton.onmouseout = () => {
+      closeButton.style.color = "white";
+    };
+    closeButton.onclick = (e: MouseEvent) => {
+      e.stopPropagation();
+      widget.remove();
+    };
+
+    // Create content area
+    const content = document.createElement("div");
+    content.style.cssText = `
+      padding: 4px;
+      font-size: ${fontSize}px;
+      line-height: 1.2;
+      text-transform: uppercase;
+      word-wrap: break-word;
+      font-weight: 500;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    `;
+    content.textContent = translatedText.toUpperCase();
+
+    widget.appendChild(closeButton);
+    widget.appendChild(content);
+    document.body.appendChild(widget);
+
+    // Auto-adjust font size to fit content
+    const adjustFontSize = () => {
+      const textLength = translatedText.length;
+      const availableArea = (width - 16) * (height - 16); // Subtract padding
+      
+      // Calculate optimal font size based on content and available space
+      let optimalSize = Math.sqrt(availableArea / textLength) * 0.8;
+      optimalSize = Math.max(8, Math.min(optimalSize, 20)); // Min 8px, max 20px
+      
+      content.style.fontSize = optimalSize + "px";
+    };
+
+    // Apply font size adjustment after DOM update
+    setTimeout(adjustFontSize, 0);
+
+    // Make widget draggable (entire widget is draggable now)
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialX = 0;
+    let initialY = 0;
+
+    widget.addEventListener("mousedown", (e: MouseEvent) => {
+      // Don't drag if clicking close button
+      if (e.target === closeButton) return;
+      
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      
+      const rect = widget.getBoundingClientRect();
+      const currentScrollX = window.pageXOffset || document.documentElement.scrollLeft;
+      const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
+      
+      initialX = rect.left + currentScrollX;
+      initialY = rect.top + currentScrollY;
+      
+      widget.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      
+      const currentScrollX = window.pageXOffset || document.documentElement.scrollLeft;
+      const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
+      
+      const newX = Math.max(currentScrollX, initialX + deltaX);
+      const newY = Math.max(currentScrollY, initialY + deltaY);
+      
+      widget.style.left = newX + "px";
+      widget.style.top = newY + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        widget.style.cursor = "move";
+      }
+    });
+
+    // Prevent text selection when dragging
+    widget.addEventListener("selectstart", (e: Event) => e.preventDefault());
   }
 
   // Execute the toggle function

@@ -1,9 +1,3 @@
-import { createWorker } from "tesseract.js";
-
-// Cache worker để tái sử dụng
-let cachedWorker: Tesseract.Worker | null = null;
-let currentOcrLanguage = "eng";
-
 // Settings interface to match options page
 interface Settings {
   apiKey: string;
@@ -11,6 +5,8 @@ interface Settings {
   model: string;
   targetLanguage: string;
   ocrLanguage: string;
+  ocrApiKey: string; // OCR.space API key
+  ocrApiUrl: string; // OCR API URL
   temperature: number;
   systemPrompt: string;
 }
@@ -21,6 +17,8 @@ const defaultSettings: Settings = {
   model: 'gemini-2.5-flash-lite',
   targetLanguage: 'vi',
   ocrLanguage: 'eng',
+  ocrApiKey: '', // OCR.space API key
+  ocrApiUrl: 'https://apipro2.ocr.space/parse/image', // OCR API URL
   temperature: 0.8,
   systemPrompt: ''
 };
@@ -32,8 +30,6 @@ async function loadSettings(): Promise<Settings> {
   return new Promise((resolve) => {
     chrome.storage.sync.get(defaultSettings, function(items) {
       currentSettings = items as Settings;
-      currentOcrLanguage = items.ocrLanguage;
-      console.log('Screen Translator: Settings loaded', currentSettings);
       resolve(currentSettings);
     });
   });
@@ -46,7 +42,6 @@ loadSettings();
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync') {
     // Reload settings when they change
-    const oldOcrLanguage = currentSettings.ocrLanguage;
     
     // Update current settings with changed values
     if (changes.apiKey) currentSettings.apiKey = changes.apiKey.newValue;
@@ -54,43 +49,58 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.model) currentSettings.model = changes.model.newValue;
     if (changes.targetLanguage) currentSettings.targetLanguage = changes.targetLanguage.newValue;
     if (changes.ocrLanguage) currentSettings.ocrLanguage = changes.ocrLanguage.newValue;
+    if (changes.ocrApiKey) currentSettings.ocrApiKey = changes.ocrApiKey.newValue;
+    if (changes.ocrApiUrl) currentSettings.ocrApiUrl = changes.ocrApiUrl.newValue;
     if (changes.temperature) currentSettings.temperature = changes.temperature.newValue;
     if (changes.systemPrompt) currentSettings.systemPrompt = changes.systemPrompt.newValue;
-    
-    // If OCR language changed, mark worker for recreation
-    if (changes.ocrLanguage && oldOcrLanguage !== currentSettings.ocrLanguage) {
-      currentOcrLanguage = currentSettings.ocrLanguage;
-    }
-    
-    console.log('Screen Translator: Settings updated from storage change', currentSettings);
   }
 });
 
-async function getOrCreateWorker(): Promise<Tesseract.Worker> {
-  if (cachedWorker && currentOcrLanguage === currentSettings.ocrLanguage) {
-    return cachedWorker;
-  }
-
-  // Terminate old worker if language changed
-  if (cachedWorker && currentOcrLanguage !== currentSettings.ocrLanguage) {
-    await cachedWorker.terminate();
-    cachedWorker = null;
-  }
-
-  currentOcrLanguage = currentSettings.ocrLanguage;
-  cachedWorker = await createWorker(currentOcrLanguage);
-
-  return cachedWorker;
-}
-
 async function performOCR(canvas: HTMLCanvasElement): Promise<string> {
   try {
-    const worker = await getOrCreateWorker();
+    // Check if OCR API key is configured
+    if (!currentSettings.ocrApiKey.trim()) {
+      throw new Error('OCR API key not configured. Please open the extension options and set your OCR.space API key.');
+    }
 
-    // Sử dụng canvas trực tiếp thay vì base64
-    const ret = await worker.recognize(canvas);
-    console.log("OCR Result:", ret.data.text);
-    return ret.data.text;
+    // Check if OCR API URL is configured
+    if (!currentSettings.ocrApiUrl.trim()) {
+      throw new Error('OCR API URL not configured. Please open the extension options and set your OCR API URL.');
+    }
+
+    // Convert canvas to base64 for OCR.space API
+    const base64Data = canvas.toDataURL('image/png');
+
+    const formData = new FormData();
+    formData.append('base64Image', base64Data);
+    formData.append('language', currentSettings.ocrLanguage);
+    formData.append('OCREngine', '2'); // Engine 2 is better for special characters and complex backgrounds
+    formData.append('scale', 'true'); // Improve OCR for low-resolution images
+    formData.append('isTable', 'false');
+    formData.append('detectOrientation', 'true');
+    formData.append('apikey', currentSettings.ocrApiKey);
+
+    const response = await fetch(currentSettings.ocrApiUrl, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error(`OCR API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.IsErroredOnProcessing) {
+      throw new Error(`OCR processing error: ${result.ErrorMessage}`);
+    }
+
+    if (result.ParsedResults && result.ParsedResults.length > 0) {
+      const parsedText = result.ParsedResults[0].ParsedText;
+      return parsedText;
+    } else {
+      throw new Error('No text found in the image');
+    }
   } catch (error) {
     console.error("OCR failed:", error);
     throw error;
@@ -103,8 +113,6 @@ async function callLLMAPI(text: string): Promise<string> {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`LLM API attempt ${attempt}/${maxRetries}`);
-
       // Check if API key is configured
       if (!currentSettings.apiKey.trim()) {
         throw new Error('API key not configured. Please open the extension options and set your Gemini API key.');
@@ -173,7 +181,6 @@ async function callLLMAPI(text: string): Promise<string> {
 
       if (data.choices && data.choices.length > 0) {
         const translatedText = data.choices[0].message.content;
-        console.log("Translation successful:", translatedText);
         return translatedText;
       } else {
         throw new Error("No response from LLM");
@@ -204,16 +211,7 @@ async function callLLMAPI(text: string): Promise<string> {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // Handle settings update
   if (message.action === "settingsUpdated") {
-    const oldOcrLanguage = currentSettings.ocrLanguage;
-    currentSettings = message.settings as Settings;
-    console.log('Screen Translator: Settings updated', currentSettings);
-    
-    // If OCR language changed, mark worker for recreation
-    if (oldOcrLanguage !== currentSettings.ocrLanguage) {
-      currentOcrLanguage = currentSettings.ocrLanguage;
-      // The worker will be recreated on next OCR operation
-    }
-    
+    currentSettings = message.settings as Settings;    
     sendResponse({ success: true });
     return true;
   }
@@ -265,10 +263,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// Cleanup khi page unload
-window.addEventListener("beforeunload", async () => {
-  if (cachedWorker) {
-    await cachedWorker.terminate();
-    cachedWorker = null;
-  }
-});
+// No cleanup needed for OCR.space API

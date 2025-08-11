@@ -131,12 +131,13 @@ function injectTranslatorScript() {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-family: system-ui;
+        font-family: Roboto;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       `;
 
       // Create Add button
       const addBtn = createToolbarButton("➕", "#4b5563", startCapture, "Add new translation");
+      addBtn.id = "add-translation-btn"; // Add ID for state management
       
       // Create Delete All button
       const deleteBtn = createToolbarButton("🗑️", "#4b5563", deleteAllWidgets, "Delete all translations");
@@ -237,7 +238,29 @@ function injectTranslatorScript() {
     chrome.runtime.sendMessage({ action: "openOptionsPage" });
   }
 
+  function setAddButtonLoading(loading: boolean, loadingText: string = "⏳"): void {
+    const addBtn = document.getElementById("add-translation-btn") as HTMLButtonElement;
+    if (!addBtn) return;
+
+    if (loading) {
+      addBtn.textContent = loadingText;
+      addBtn.disabled = true;
+      addBtn.style.background = "#6b7280";
+      addBtn.style.cursor = "not-allowed";
+      addBtn.title = "Processing...";
+    } else {
+      addBtn.textContent = "➕";
+      addBtn.disabled = false;
+      addBtn.style.background = "#4b5563";
+      addBtn.style.cursor = "pointer";
+      addBtn.title = "Add new translation";
+    }
+  }
+
   function startCapture(): void {
+    // Disable add button during capture mode
+    setAddButtonLoading(true, "🎯");
+
     // Create overlay
     const overlay = document.createElement("div");
     overlay.id = "capture-overlay";
@@ -253,7 +276,7 @@ function injectTranslatorScript() {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: system-ui;
+      font-family: Roboto;
       color: white;
       font-size: 24px;
       user-select: none;
@@ -279,6 +302,13 @@ function injectTranslatorScript() {
     let isDrawing = false;
     let startX = 0;
     let startY = 0;
+
+    // Function to cleanup and reset button state
+    const cleanup = () => {
+      overlay.remove();
+      selectionBox.remove();
+      setAddButtonLoading(false);
+    };
 
     overlay.addEventListener("mousedown", (e: MouseEvent) => {
       isDrawing = true;
@@ -321,6 +351,10 @@ function injectTranslatorScript() {
       const width = Math.abs(endX - startX);
       const height = Math.abs(endY - startY);
 
+      // Remove overlay and selection box first
+      overlay.remove();
+      selectionBox.remove();
+
       if (width > 10 && height > 10) {
         await captureArea(
           Math.min(startX, endX),
@@ -328,17 +362,16 @@ function injectTranslatorScript() {
           width,
           height
         );
+      } else {
+        // Reset button state if no valid selection was made
+        setAddButtonLoading(false);
       }
-
-      overlay.remove();
-      selectionBox.remove();
     });
 
     // Close overlay on Escape key
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        overlay.remove();
-        selectionBox.remove();
+        cleanup();
         document.removeEventListener("keydown", handleKeyDown);
       }
     };
@@ -359,6 +392,9 @@ function injectTranslatorScript() {
     height: number
   ): Promise<void> {
     try {
+      // Set loading state for capture
+      setAddButtonLoading(true, "📷");
+
       // Send message to background script to capture the visible tab
       const response = await new Promise<CaptureResponse>((resolve) => {
         chrome.runtime.sendMessage(
@@ -382,6 +418,9 @@ function injectTranslatorScript() {
         // Convert canvas to base64 for sending to content script
         const croppedBase64 = croppedCanvas.toDataURL("image/png");
 
+        // Set loading state for OCR
+        setAddButtonLoading(true, "👁️");
+
         // Send OCR request through background script (as proxy)
         chrome.runtime.sendMessage(
           {
@@ -399,10 +438,14 @@ function injectTranslatorScript() {
                 chrome.runtime.lastError.message
               );
               alert("Failed to communicate with background script");
+              setAddButtonLoading(false);
               return;
             }
 
-            if (ocrResponse && ocrResponse.success && ocrResponse.text) {              
+            if (ocrResponse && ocrResponse.success && ocrResponse.text) {
+              // Set loading state for LLM translation
+              setAddButtonLoading(true, "🔄");
+              
               // Call LLM API for translation
               chrome.runtime.sendMessage(
                 {
@@ -414,6 +457,9 @@ function injectTranslatorScript() {
                   translatedText?: string;
                   error?: string;
                 }) => {
+                  // Reset loading state
+                  setAddButtonLoading(false);
+
                   if (chrome.runtime.lastError) {
                     console.error(
                       "LLM communication failed:",
@@ -424,7 +470,6 @@ function injectTranslatorScript() {
                   }
 
                   if (llmResponse && llmResponse.success) {
-                    console.log("Translated Text:", llmResponse.translatedText);
                     showTranslationResult(llmResponse.translatedText || "", x, y, width, height);
                   } else {
                     console.error("Translation failed:", llmResponse?.error);
@@ -435,6 +480,7 @@ function injectTranslatorScript() {
             } else {
               console.error("OCR failed:", ocrResponse?.error);
               alert("OCR failed: " + (ocrResponse?.error || "Unknown error"));
+              setAddButtonLoading(false);
             }
           }
         );
@@ -444,6 +490,7 @@ function injectTranslatorScript() {
     } catch (error) {
       console.error("Capture failed:", error);
       alert("Capture failed: " + (error as Error).message);
+      setAddButtonLoading(false);
     }
   }
 
@@ -505,7 +552,7 @@ function injectTranslatorScript() {
       border: 2px solid #646cff;
       border-radius: 8px;
       color: white;
-      font-family: system-ui;
+      font-family: Roboto;
       z-index: 10000;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
       overflow: hidden;
@@ -563,6 +610,10 @@ function injectTranslatorScript() {
       align-items: center;
       justify-content: center;
       text-align: center;
+      font-family: Roboto;
+      font-feature-settings: 'liga' 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     `;
     content.textContent = translatedText.toUpperCase();
 

@@ -6,7 +6,7 @@ A powerful Chrome Extension that helps you translate text on screen instantly us
 
 - 🖼️ **Capture & Translate**: Select screen areas to automatically recognize and translate text
 - 🤖 **AI Translation**: Uses Google Gemini AI for accurate and natural translations
-- 👁️ **Smart OCR**: High-accuracy text recognition from images
+- 👁️ **Smart OCR**: High-accuracy text recognition using OCR.space API
 - 🌐 **Multi-language**: Support for multiple input and output languages
 - 📱 **User-friendly Interface**: Draggable and resizable translation widgets
 - ⚙️ **Flexible Customization**: Configure API, AI models, and languages as needed
@@ -16,6 +16,7 @@ A powerful Chrome Extension that helps you translate text on screen instantly us
 ### Requirements
 - Google Chrome or Chromium-based browser
 - Google Gemini API key (free)
+- OCR.space API key (free)
 
 ### Step 1: Build the extension
 ```bash
@@ -36,22 +37,31 @@ npm run build
 3. Click **Load unpacked** and select the `dist` folder
 4. The extension will appear in the list as "Screen Translator"
 
-### Step 3: Get Gemini API Key
+### Step 3: Get API Keys
+
+#### Google Gemini API Key
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Sign in with your Google account
 3. Create a new API key
 4. Copy the API key for use
 
+#### OCR.space API Key
+1. Visit [OCR.space Free API Key](https://ocr.space/ocrapi/freekey)
+2. Register for a free account
+3. You'll receive your API key via email
+4. Free tier includes 25,000 requests/month
+
 ## ⚙️ Configuration
 
 ### Basic Setup
 1. Right-click the extension icon and select **Options**
-2. Enter your **Gemini API Key** in the "API Key" field
-3. Configure the settings:
+2. Enter your **Gemini API Key** in the "Gemini API Key" field
+3. Enter your **OCR.space API Key** in the "OCR.space API Key" field
+4. Configure the settings:
    - **Target Language**: Destination language (e.g., vi for Vietnamese)
    - **OCR Language**: Source language (e.g., eng for English)
    - **Model**: AI model (recommended: `gemini-2.5-flash-lite`)
-4. Click **Save Settings**
+5. Click **Save Settings**
 
 ### Advanced Options
 - **Temperature**: Translation creativity level (0.8 is optimal)
@@ -86,16 +96,35 @@ npm run build
 
 ## 🌍 Supported Languages
 
-### OCR Languages (Input)
+### OCR Languages (Input) - OCR.space API
+- `ara` - Arabic
+- `bul` - Bulgarian
+- `chs` - Chinese Simplified
+- `cht` - Chinese Traditional
+- `hrv` - Croatian
+- `cze` - Czech
+- `dan` - Danish
+- `dut` - Dutch
 - `eng` - English
-- `vie` - Vietnamese  
-- `chi_sim` - Chinese Simplified
-- `chi_tra` - Chinese Traditional
-- `jpn` - Japanese
+- `fin` - Finnish
+- `fre` - French
+- `ger` - German
+- `gre` - Greek
+- `hun` - Hungarian
 - `kor` - Korean
-- `fra` - French
-- `deu` - German
+- `ita` - Italian
+- `jpn` - Japanese
+- `pol` - Polish
+- `por` - Portuguese
+- `rus` - Russian
+- `slv` - Slovenian
 - `spa` - Spanish
+- `swe` - Swedish
+- `tha` - Thai
+- `tur` - Turkish
+- `ukr` - Ukrainian
+- `vnm` - Vietnamese
+- `auto` - Auto-detect Language
 
 ### Target Languages (Output)
 - `vi` - Vietnamese
@@ -111,7 +140,7 @@ npm run build
 
 ### Tech Stack
 - **Frontend**: TypeScript + Chrome Extension APIs
-- **OCR**: Tesseract.js
+- **OCR**: OCR.space API
 - **AI**: Google Gemini API
 - **Build**: Vite + npm
 
@@ -145,7 +174,7 @@ public/
 ## 🐛 Troubleshooting
 
 ### Extension not working
-- Check if API key is configured properly
+- Check if both API keys are configured properly
 - Ensure stable internet connection
 - Refresh the webpage and try again
 
@@ -153,11 +182,16 @@ public/
 - Select clear text areas without blur
 - Ensure OCR language matches the text
 - Very small text or noisy images may affect accuracy
+- OCR.space free tier has 1MB file size limit
 
 ### Translation inaccuracy
 - Try adjusting temperature (0.3-1.0)
 - Check if target language is correct
 - Consider customizing system prompt for special cases
+
+### API Limits
+- **OCR.space Free**: 25,000 requests/month, 1MB file size limit
+- **Gemini Free**: Check [Google AI Studio](https://makersuite.google.com/) for current limits
 
 ## 📝 License
 

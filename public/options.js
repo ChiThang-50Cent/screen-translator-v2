@@ -2,6 +2,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const elements = {
         apiKey: document.getElementById('apiKey'),
+        ocrApiKey: document.getElementById('ocrApiKey'),
+        ocrApiUrl: document.getElementById('ocrApiUrl'),
         apiUrl: document.getElementById('apiUrl'),
         model: document.getElementById('model'),
         targetLanguage: document.getElementById('targetLanguage'),
@@ -18,6 +20,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Default settings
     const defaultSettings = {
         apiKey: '',
+        ocrApiKey: '',
+        ocrApiUrl: 'https://apipro2.ocr.space/parse/image',
         apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
         model: 'gemini-2.5-flash-lite',
         targetLanguage: 'vi',
@@ -30,6 +34,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function loadSettings() {
         chrome.storage.sync.get(defaultSettings, function(items) {
             elements.apiKey.value = items.apiKey || '';
+            elements.ocrApiKey.value = items.ocrApiKey || '';
+            elements.ocrApiUrl.value = items.ocrApiUrl;
             elements.apiUrl.value = items.apiUrl;
             elements.model.value = items.model;
             elements.targetLanguage.value = items.targetLanguage;
@@ -44,6 +50,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function saveSettings() {
         // Basic validation
         const apiKey = elements.apiKey.value.trim();
+        const ocrApiKey = elements.ocrApiKey.value.trim();
+        const ocrApiUrl = elements.ocrApiUrl.value.trim();
         const apiUrl = elements.apiUrl.value.trim();
         const model = elements.model.value.trim();
         const targetLanguage = elements.targetLanguage.value.trim().toLowerCase();
@@ -52,8 +60,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const systemPrompt = elements.systemPrompt.value.trim();
 
         if (!apiKey) {
-            showStatus('❌ API Key is required', 'error');
+            showStatus('❌ Gemini API Key is required', 'error');
             elements.apiKey.focus();
+            return;
+        }
+
+        if (!ocrApiKey) {
+            showStatus('❌ OCR.space API Key is required', 'error');
+            elements.ocrApiKey.focus();
+            return;
+        }
+
+        if (!ocrApiUrl) {
+            showStatus('❌ OCR API URL is required', 'error');
+            elements.ocrApiUrl.focus();
+            return;
+        }
+
+        // Validate OCR URL format
+        try {
+            new URL(ocrApiUrl);
+        } catch {
+            showStatus('❌ Invalid OCR API URL format', 'error');
+            elements.ocrApiUrl.focus();
             return;
         }
 
@@ -98,10 +127,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Validate OCR language code
-        const validOcrLanguages = ['eng', 'vie', 'chi_sim', 'chi_tra', 'jpn', 'kor', 'fra', 'deu', 'spa'];
+        // Validate OCR language code for OCR.space API
+        const validOcrLanguages = ['ara', 'bul', 'chs', 'cht', 'hrv', 'cze', 'dan', 'dut', 'eng', 'fin', 'fre', 'ger', 'gre', 'hun', 'kor', 'ita', 'jpn', 'pol', 'por', 'rus', 'slv', 'spa', 'swe', 'tha', 'tur', 'ukr', 'vnm', 'auto'];
         if (!validOcrLanguages.includes(ocrLanguage)) {
-            showStatus('❌ Invalid OCR language code. Use: ' + validOcrLanguages.join(', '), 'error');
+            showStatus('❌ Invalid OCR language code. Use: ' + validOcrLanguages.slice(0, 10).join(', ') + '...', 'error');
             elements.ocrLanguage.focus();
             return;
         }
@@ -114,6 +143,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const settings = {
             apiKey: apiKey,
+            ocrApiKey: ocrApiKey,
+            ocrApiUrl: ocrApiUrl,
             apiUrl: apiUrl,
             model: model,
             targetLanguage: targetLanguage,

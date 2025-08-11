@@ -17,6 +17,16 @@
                 <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
             </div>
             <div class="form-group">
+                <label for="ocrApiKey">OCR.space API Key:</label>
+                <input type="password" id="ocrApiKey" placeholder="Enter your OCR.space API key">
+                <small class="help-text">Get your free API key at <a href="https://ocr.space/ocrapi/freekey" target="_blank">ocr.space/ocrapi/freekey</a></small>
+            </div>
+            <div class="form-group">
+                <label for="ocrApiUrl">OCR API URL:</label>
+                <input type="url" id="ocrApiUrl" placeholder="https://apipro2.ocr.space/parse/image">
+                <small class="help-text">OCR service endpoint URL. Default is OCR.space API.</small>
+            </div>
+            <div class="form-group">
                 <label for="apiUrl">API URL:</label>
                 <input type="url" id="apiUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions">
             </div>
@@ -36,8 +46,8 @@
             </div>
             <div class="form-group">
                 <label for="ocrLanguage">OCR Language:</label>
-                <input type="text" id="ocrLanguage" placeholder="e.g., eng (English), vie (Vietnamese), chi_sim (Chinese Simplified)">
-                <small class="help-text">Valid codes: eng, vie, chi_sim, chi_tra, jpn, kor, fra, deu, spa</small>
+                <input type="text" id="ocrLanguage" placeholder="e.g., eng (English), chs (Chinese Simplified), jpn (Japanese), auto (Auto-detect)">
+                <small class="help-text">Valid codes: ara, bul, chs, cht, hrv, cze, dan, dut, eng, fin, fre, ger, gre, hun, kor, ita, jpn, pol, por, rus, slv, spa, swe, tha, tur, ukr, vnm, auto</small>
             </div>
             <div class="form-group">
                 <label for="temperature">Translation Creativity (Temperature):</label>

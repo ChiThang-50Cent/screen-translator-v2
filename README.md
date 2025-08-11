@@ -2,6 +2,12 @@
 
 A powerful Chrome Extension that helps you translate text on screen instantly using OCR and AI technology. Especially useful for reading manga, comics, documents, and foreign language content.
 
+## 🎬 Demo
+
+![Screen Translator Demo](./demo/2025-08-11_22-59-07-ezgif.com-speed.gif)
+
+*Quick demonstration of capturing and translating text from any webpage*
+
 ## ✨ Key Features
 
 - 🖼️ **Capture & Translate**: Select screen areas to automatically recognize and translate text
@@ -16,7 +22,7 @@ A powerful Chrome Extension that helps you translate text on screen instantly us
 ### Requirements
 - Google Chrome or Chromium-based browser
 - Google Gemini API key (free)
-- OCR.space API key (free)
+- OCR.space API key (You can try: `copyfishonly_24`)
 
 ### Step 1: Build the extension
 ```bash
@@ -51,12 +57,14 @@ npm run build
 3. You'll receive your API key via email
 4. Free tier includes 25,000 requests/month
 
+(You can try: `copyfishonly_24`)
+
 ## ⚙️ Configuration
 
 ### Basic Setup
 1. Right-click the extension icon and select **Options**
 2. Enter your **Gemini API Key** in the "Gemini API Key" field
-3. Enter your **OCR.space API Key** in the "OCR.space API Key" field
+3. Enter your **OCR.space API Key** in the "OCR.space API Key" field.
 4. Configure the settings:
    - **Target Language**: Destination language (e.g., vi for Vietnamese)
    - **OCR Language**: Source language (e.g., eng for English)

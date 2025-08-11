@@ -146,17 +146,8 @@ npm run build
 
 ### Scripts
 ```bash
-# Development mode
-npm run dev
-
 # Build production
 npm run build
-
-# Lint code
-npm run lint
-
-# Preview build
-npm run preview
 ```
 
 ### Project Structure
@@ -196,14 +187,6 @@ public/
 ## 📝 License
 
 MIT License - See LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Create a Pull Request
 
 ## 📞 Support
 
